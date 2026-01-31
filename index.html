@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Astria Agent Status</title>
+  <style>
+    :root{--bg:#0b1020;--card:#101a33;--text:#e8ecff;--muted:#a8b2d1;--ok:#2bd576;--busy:#ffcc00;--err:#ff5c7a;--link:#8ab4ff;}
+    body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; background:linear-gradient(180deg,#070a14, var(--bg)); color:var(--text);}
+    .wrap{max-width:860px;margin:0 auto;padding:40px 18px;}
+    .card{background:rgba(16,26,51,.85); border:1px solid rgba(138,180,255,.2); border-radius:16px; padding:22px; box-shadow:0 12px 40px rgba(0,0,0,.35)}
+    h1{margin:0 0 6px 0;font-size:22px;}
+    .sub{color:var(--muted); font-size:14px; margin-bottom:16px;}
+    .row{display:flex; gap:12px; flex-wrap:wrap;}
+    .pill{display:inline-flex;align-items:center;gap:10px;padding:10px 12px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08)}
+    .dot{width:10px;height:10px;border-radius:999px;background:var(--muted)}
+    .kv{margin-top:14px;display:grid;grid-template-columns:160px 1fr; gap:10px 14px; font-size:14px;}
+    .k{color:var(--muted)}
+    a{color:var(--link)}
+    .foot{margin-top:18px;color:var(--muted);font-size:12px}
+    code{background:rgba(255,255,255,.06); padding:2px 6px; border-radius:6px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Astria Agent Status</h1>
+      <div class="sub">Public heartbeat page — shows when the assistant is working remotely.</div>
+
+      <div class="row">
+        <div class="pill"><span class="dot" id="dot"></span><strong id="state">Loading…</strong></div>
+        <div class="pill"><span class="k">Task</span><span id="task">—</span></div>
+      </div>
+
+      <div class="kv">
+        <div class="k">Last update</div><div id="updated">—</div>
+        <div class="k">Last heartbeat age</div><div id="age">—</div>
+        <div class="k">Source</div><div><a id="jsonLink" href="status.json">status.json</a></div>
+      </div>
+
+      <div class="foot">This page polls <code>status.json</code> every 10 seconds.</div>
+    </div>
+  </div>
+
+<script>
+  const dot = document.getElementById('dot');
+  const stateEl = document.getElementById('state');
+  const taskEl = document.getElementById('task');
+  const updatedEl = document.getElementById('updated');
+  const ageEl = document.getElementById('age');
+
+  function fmt(ts){
+    if(!ts) return '—';
+    const d = new Date(ts);
+    return d.toLocaleString();
+  }
+
+  function colorFor(state){
+    switch((state||'').toUpperCase()){
+      case 'WORKING': return getComputedStyle(document.documentElement).getPropertyValue('--busy');
+      case 'IDLE': return getComputedStyle(document.documentElement).getPropertyValue('--ok');
+      case 'ERROR': return getComputedStyle(document.documentElement).getPropertyValue('--err');
+      default: return getComputedStyle(document.documentElement).getPropertyValue('--muted');
+    }
+  }
+
+  function age(ts){
+    if(!ts) return '—';
+    const ms = Date.now() - new Date(ts).getTime();
+    const s = Math.max(0, Math.floor(ms/1000));
+    if(s < 60) return s+'s';
+    const m = Math.floor(s/60);
+    if(m < 60) return m+'m '+(s%60)+'s';
+    const h = Math.floor(m/60);
+    return h+'h '+(m%60)+'m';
+  }
+
+  async function tick(){
+    try{
+      const r = await fetch('status.json?cb='+Date.now(), {cache:'no-store'});
+      const j = await r.json();
+      const st = j.state || 'UNKNOWN';
+      stateEl.textContent = st;
+      taskEl.textContent = j.task || '—';
+      updatedEl.textContent = fmt(j.updatedAt);
+      ageEl.textContent = age(j.updatedAt);
+      dot.style.background = colorFor(st);
+    } catch(e){
+      stateEl.textContent = 'ERROR';
+      taskEl.textContent = 'Failed to load status.json';
+      dot.style.background = colorFor('ERROR');
+    }
+  }
+
+  tick();
+  setInterval(tick, 10000);
+</script>
+</body>
+</html>

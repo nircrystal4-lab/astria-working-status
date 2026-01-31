@@ -5,31 +5,194 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Astria Agent Status</title>
   <style>
-    :root{--bg:#0b1020;--card:#101a33;--text:#e8ecff;--muted:#a8b2d1;--ok:#2bd576;--busy:#ffcc00;--err:#ff5c7a;--link:#8ab4ff;}
-    body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; background:linear-gradient(180deg,#070a14, var(--bg)); color:var(--text);}
-    .wrap{max-width:860px;margin:0 auto;padding:40px 18px;}
-    .card{background:rgba(16,26,51,.85); border:1px solid rgba(138,180,255,.2); border-radius:16px; padding:22px; box-shadow:0 12px 40px rgba(0,0,0,.35)}
+    :root{
+      --bg:#0b1020;
+      --card:#101a33;
+      --text:#e8ecff;
+      --muted:#a8b2d1;
+      --ok:#2bd576;
+      --busy:#ffcc00;
+      --err:#ff5c7a;
+      --link:#8ab4ff;
+    }
+    body{
+      margin:0;
+      font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+      background:radial-gradient(1200px 700px at 20% 10%, rgba(138,180,255,.14), transparent 60%),
+                 radial-gradient(1200px 700px at 80% 30%, rgba(43,213,118,.10), transparent 55%),
+                 linear-gradient(180deg,#070a14, var(--bg));
+      color:var(--text);
+      overflow-x:hidden;
+    }
+
+    /* Background animation: subtle when IDLE, more energetic when WORKING */
+    .bgfx{
+      position:fixed; inset:-40% -40%;
+      background:
+        radial-gradient(closest-side, rgba(255,204,0,.18), transparent 60%) 20% 20%/40% 40% no-repeat,
+        radial-gradient(closest-side, rgba(138,180,255,.22), transparent 60%) 75% 35%/45% 45% no-repeat,
+        radial-gradient(closest-side, rgba(43,213,118,.18), transparent 60%) 55% 75%/45% 45% no-repeat;
+      filter: blur(40px);
+      opacity:.35;
+      transform: translate3d(0,0,0);
+      pointer-events:none;
+      animation: drift 18s ease-in-out infinite;
+    }
+    @keyframes drift{
+      0%{ transform: translate(-2%, -1%) scale(1.02); }
+      50%{ transform: translate(2%, 1%) scale(1.06); }
+      100%{ transform: translate(-2%, -1%) scale(1.02); }
+    }
+
+    body[data-state="WORKING"] .bgfx{
+      opacity:.55;
+      animation: drift 10s ease-in-out infinite;
+    }
+
+    body[data-state="ERROR"] .bgfx{
+      opacity:.55;
+      filter: blur(46px) saturate(1.2);
+    }
+
+    .wrap{max-width:860px;margin:0 auto;padding:40px 18px;position:relative;}
+
+    .card{
+      position:relative;
+      background:rgba(16,26,51,.82);
+      border:1px solid rgba(138,180,255,.20);
+      border-radius:18px;
+      padding:22px;
+      box-shadow:0 18px 60px rgba(0,0,0,.45);
+      backdrop-filter: blur(10px);
+    }
+
+    /* Card glow changes by state */
+    .card::before{
+      content:"";
+      position:absolute; inset:-1px;
+      border-radius:18px;
+      padding:1px;
+      background:linear-gradient(120deg, rgba(138,180,255,.25), rgba(255,255,255,.03), rgba(43,213,118,.18));
+      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      pointer-events:none;
+      opacity:.9;
+    }
+
+    body[data-state="WORKING"] .card::before{
+      background:linear-gradient(120deg, rgba(255,204,0,.38), rgba(138,180,255,.22), rgba(255,92,122,.10));
+      animation: borderPulse 1.8s ease-in-out infinite;
+    }
+    @keyframes borderPulse{ 0%,100%{opacity:.55} 50%{opacity:1} }
+
+    body[data-state="ERROR"] .card{
+      animation: shake .25s ease-in-out 0s 2;
+    }
+    @keyframes shake{
+      0%{transform:translateX(0)}
+      25%{transform:translateX(3px)}
+      50%{transform:translateX(-3px)}
+      75%{transform:translateX(2px)}
+      100%{transform:translateX(0)}
+    }
+
     h1{margin:0 0 6px 0;font-size:22px;}
     .sub{color:var(--muted); font-size:14px; margin-bottom:16px;}
-    .row{display:flex; gap:12px; flex-wrap:wrap;}
-    .pill{display:inline-flex;align-items:center;gap:10px;padding:10px 12px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08)}
-    .dot{width:10px;height:10px;border-radius:999px;background:var(--muted)}
+    .row{display:flex; gap:12px; flex-wrap:wrap; align-items:center;}
+
+    /* Status pill */
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      gap:10px;
+      padding:10px 12px;
+      border-radius:999px;
+      background:rgba(255,255,255,.06);
+      border:1px solid rgba(255,255,255,.08)
+    }
+
+    /* The fun bit: dot becomes animated ring when WORKING */
+    .dotWrap{
+      position:relative;
+      width:12px; height:12px;
+      display:inline-block;
+    }
+    .dot{
+      width:12px; height:12px;
+      border-radius:999px;
+      background:var(--muted);
+      box-shadow:0 0 0 0 rgba(168,178,209,.25);
+    }
+
+    body[data-state="IDLE"] .dot{
+      animation: breathe 2.2s ease-in-out infinite;
+    }
+    @keyframes breathe{
+      0%,100%{ transform:scale(1); box-shadow:0 0 0 0 rgba(43,213,118,.18); }
+      50%{ transform:scale(1.12); box-shadow:0 0 0 10px rgba(43,213,118,0); }
+    }
+
+    /* WORKING: spinning ring around dot */
+    .ring{
+      position:absolute; inset:-6px;
+      border-radius:999px;
+      background:conic-gradient(from 0deg, rgba(255,204,0,1), rgba(138,180,255,1), rgba(255,92,122,.9), rgba(255,204,0,1));
+      filter: blur(.2px);
+      opacity:0;
+      transform:translateZ(0);
+    }
+    .ring::after{
+      content:"";
+      position:absolute; inset:2px;
+      border-radius:999px;
+      background:rgba(16,26,51,.95);
+    }
+
+    body[data-state="WORKING"] .ring{
+      opacity:1;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin{ to{ transform: rotate(360deg); } }
+
+    body[data-state="WORKING"] .dot{
+      background: var(--busy);
+      box-shadow: 0 0 18px rgba(255,204,0,.35);
+    }
+
+    body[data-state="ERROR"] .dot{
+      background: var(--err);
+      animation: errPulse 1.2s ease-in-out infinite;
+      box-shadow:0 0 18px rgba(255,92,122,.35);
+    }
+    @keyframes errPulse{ 0%,100%{transform:scale(1)} 50%{transform:scale(1.14)} }
+
     .kv{margin-top:14px;display:grid;grid-template-columns:160px 1fr; gap:10px 14px; font-size:14px;}
     .k{color:var(--muted)}
     a{color:var(--link)}
     .foot{margin-top:18px;color:var(--muted);font-size:12px}
     code{background:rgba(255,255,255,.06); padding:2px 6px; border-radius:6px}
+
+    .taskText{max-width:520px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   </style>
 </head>
-<body>
+<body data-state="UNKNOWN">
+  <div class="bgfx" aria-hidden="true"></div>
+
   <div class="wrap">
     <div class="card">
       <h1>Astria Agent Status</h1>
       <div class="sub">Public heartbeat page — shows when the assistant is working remotely.</div>
 
       <div class="row">
-        <div class="pill"><span class="dot" id="dot"></span><strong id="state">Loading…</strong></div>
-        <div class="pill"><span class="k">Task</span><span id="task">—</span></div>
+        <div class="pill">
+          <span class="dotWrap" aria-hidden="true">
+            <span class="ring" id="ring"></span>
+            <span class="dot" id="dot"></span>
+          </span>
+          <strong id="state">Loading…</strong>
+        </div>
+        <div class="pill"><span class="k">Task</span><span class="taskText" id="task">—</span></div>
       </div>
 
       <div class="kv">
@@ -55,15 +218,6 @@
     return d.toLocaleString();
   }
 
-  function colorFor(state){
-    switch((state||'').toUpperCase()){
-      case 'WORKING': return getComputedStyle(document.documentElement).getPropertyValue('--busy');
-      case 'IDLE': return getComputedStyle(document.documentElement).getPropertyValue('--ok');
-      case 'ERROR': return getComputedStyle(document.documentElement).getPropertyValue('--err');
-      default: return getComputedStyle(document.documentElement).getPropertyValue('--muted');
-    }
-  }
-
   function age(ts){
     if(!ts) return '—';
     const ms = Date.now() - new Date(ts).getTime();
@@ -79,16 +233,24 @@
     try{
       const r = await fetch('status.json?cb='+Date.now(), {cache:'no-store'});
       const j = await r.json();
-      const st = j.state || 'UNKNOWN';
+      const st = (j.state || 'UNKNOWN').toUpperCase();
+      document.body.dataset.state = st;
       stateEl.textContent = st;
-      taskEl.textContent = j.task || '—';
+      taskEl.textContent = (j.task && j.task.trim()) ? j.task : '—';
       updatedEl.textContent = fmt(j.updatedAt);
       ageEl.textContent = age(j.updatedAt);
-      dot.style.background = colorFor(st);
+
+      // keep a sensible dot color in case CSS doesn’t load
+      if(st === 'WORKING') dot.style.background = 'var(--busy)';
+      else if(st === 'IDLE') dot.style.background = 'var(--ok)';
+      else if(st === 'ERROR') dot.style.background = 'var(--err)';
+      else dot.style.background = 'var(--muted)';
+
     } catch(e){
+      document.body.dataset.state = 'ERROR';
       stateEl.textContent = 'ERROR';
       taskEl.textContent = 'Failed to load status.json';
-      dot.style.background = colorFor('ERROR');
+      dot.style.background = 'var(--err)';
     }
   }
 

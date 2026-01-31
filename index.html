@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Astria Agent Status</title>
+  <title>Chicken Status</title>
   <style>
     :root{
       --bg:#0b1020;
@@ -54,7 +54,54 @@
       filter: blur(46px) saturate(1.2);
     }
 
-    .wrap{max-width:860px;margin:0 auto;padding:40px 18px;position:relative;}
+    .wrap{max-width:980px;margin:0 auto;padding:48px 18px;position:relative;}
+
+    .hero{
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      text-align:center;
+      padding:10px 0 6px;
+    }
+
+    .chicken{
+      font-size:140px;
+      line-height:1;
+      filter: drop-shadow(0 18px 40px rgba(0,0,0,.45));
+      transform: translateZ(0);
+      user-select:none;
+    }
+
+    .label{
+      margin-top:10px;
+      font-size:34px;
+      font-weight:800;
+      letter-spacing:.3px;
+    }
+
+    .label small{
+      display:block;
+      font-size:14px;
+      font-weight:600;
+      color:var(--muted);
+      margin-top:8px;
+    }
+
+    body[data-state="WORKING"] .chicken{ animation: run 650ms ease-in-out infinite; }
+    @keyframes run{
+      0%{ transform: translateY(0) rotate(-2deg); }
+      50%{ transform: translateY(-10px) rotate(2deg); }
+      100%{ transform: translateY(0) rotate(-2deg); }
+    }
+
+    body[data-state="IDLE"] .chicken{ animation: rest 2.8s ease-in-out infinite; }
+    @keyframes rest{
+      0%,100%{ transform: translateY(0) scale(1); opacity: .95; }
+      50%{ transform: translateY(2px) scale(0.99); opacity: 1; }
+    }
+
+    body[data-state="ERROR"] .chicken{ animation: shake .25s ease-in-out 0s 2; }
 
     .card{
       position:relative;
@@ -181,10 +228,12 @@
 
   <div class="wrap">
     <div class="card">
-      <h1>Astria Agent Status</h1>
-      <div class="sub">Public heartbeat page — shows when the assistant is working remotely.</div>
+      <div class="hero">
+        <div class="chicken" id="chicken" aria-hidden="true">🐔</div>
+        <div class="label" id="label">Loading…<small id="task">—</small></div>
+      </div>
 
-      <div class="row">
+      <div class="row" style="justify-content:center;">
         <div class="pill">
           <span class="dotWrap" aria-hidden="true">
             <span class="ring" id="ring"></span>
@@ -192,7 +241,6 @@
           </span>
           <strong id="state">Loading…</strong>
         </div>
-        <div class="pill"><span class="k">Task</span><span class="taskText" id="task">—</span></div>
       </div>
 
       <div class="kv">
@@ -201,7 +249,7 @@
         <div class="k">Source</div><div><a id="jsonLink" href="status.json">status.json</a></div>
       </div>
 
-      <div class="foot">This page polls <code>status.json</code> every 10 seconds.</div>
+      <div class="foot">This page polls <code>status.json</code> every 5 seconds (cache-busted).</div>
     </div>
   </div>
 
@@ -209,6 +257,8 @@
   const dot = document.getElementById('dot');
   const stateEl = document.getElementById('state');
   const taskEl = document.getElementById('task');
+  const labelEl = document.getElementById('label');
+  const chickenEl = document.getElementById('chicken');
   const updatedEl = document.getElementById('updated');
   const ageEl = document.getElementById('age');
 
@@ -235,8 +285,21 @@
       const j = await r.json();
       const st = (j.state || 'UNKNOWN').toUpperCase();
       document.body.dataset.state = st;
-      stateEl.textContent = st;
-      taskEl.textContent = (j.task && j.task.trim()) ? j.task : '—';
+
+      const task = (j.task && j.task.trim()) ? j.task.trim() : '';
+
+      // map machine state -> chicken UI
+      let label = st;
+      let chicken = '🐔';
+      if(st === 'WORKING') { label = 'RUNNING'; chicken = '🐔'; }
+      else if(st === 'IDLE') { label = 'RESTING'; chicken = '🐣'; }
+      else if(st === 'ERROR') { label = 'ERROR'; chicken = '🐔'; }
+      else { label = st; chicken = '🐔'; }
+
+      stateEl.textContent = label;
+      chickenEl.textContent = chicken;
+      labelEl.firstChild.nodeValue = label;
+      taskEl.textContent = task ? task : '—';
       updatedEl.textContent = fmt(j.updatedAt);
       ageEl.textContent = age(j.updatedAt);
 
@@ -249,13 +312,15 @@
     } catch(e){
       document.body.dataset.state = 'ERROR';
       stateEl.textContent = 'ERROR';
+      chickenEl.textContent = '🐔';
+      labelEl.firstChild.nodeValue = 'ERROR';
       taskEl.textContent = 'Failed to load status.json';
       dot.style.background = 'var(--err)';
     }
   }
 
   tick();
-  setInterval(tick, 10000);
+  setInterval(tick, 5000);
 </script>
 </body>
 </html>
